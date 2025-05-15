@@ -137,3 +137,4 @@ dist
 
 recordings/*
 !recordings/test.wav
+src/config.ts
