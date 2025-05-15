@@ -10,8 +10,10 @@ import prism from 'prism-media';
 import { token } from './config';
 import { transcribeAudio } from './whisper';
 import { generateFollowUp } from './followup';
+import { Logger } from './logger';
 
 const followup_channel = process.env.FOLLOW_UP_CHANNEL;
+const logs_channel = process.env.LOGS_CHANNEL;
 
 const client = new Client({
   intents: [
@@ -37,7 +39,11 @@ interface ActiveRecording {
 
 const activeRecordings = new Map<string, ActiveRecording>();
 
-client.once('ready', () => { console.log(`Бот запущен как ${client.user?.tag}`)});
+client.once('ready', async () => {
+  const guild = client.guilds.cache.first();
+  if (guild) Logger.init(guild);
+  console.log(`Бот запущен как ${client.user?.tag}`);
+});
 
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
@@ -59,7 +65,8 @@ client.on('messageCreate', async (message) => {
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
     } catch (error) {
-      console.error('Ошибка при подключении к голосовому каналу:', error);
+      Logger.error('Ошибка при подключении к голосовому каналу: ' + error);
+      //console.error('Ошибка при подключении к голосовому каналу:', error);
       return;
     }
 
@@ -91,17 +98,18 @@ client.on('messageCreate', async (message) => {
     ]);
 
     ffmpeg.stderr.on('data', (data) => {
-      console.error(`ffmpeg stderr: ${data}`);
+
+      Logger.error(`ffmpeg stderr: ${data}`);
     });
 
     ffmpeg.on('close', async (code) => {
-      console.log(`Запись завершена, ffmpeg завершился с кодом ${code}`);
+      Logger.log(`Запись завершена, ffmpeg завершился с кодом ${code}`);
       await TranscribeAudio(filepath, message);
     });
 
     opusStream.pipe(decoder).pipe(ffmpeg.stdin);
 
-    console.log(`Началась запись: ${filepath}`);
+    Logger.log(`Началась запись: ${filepath}`);
 
     activeRecordings.set(message.guild.id, {
       userId,
@@ -136,7 +144,7 @@ client.on('voiceStateUpdate', (oldState: VoiceState, newState: VoiceState) => {
   const recording = activeRecordings.get(oldState.guild.id);
   if (recording && oldState.id === recording.userId && oldState.channelId &&  !newState.channelId)
   {
-    console.log(`${oldState.member?.user.tag} вышел из канала, завершаем запись.`);
+    Logger.log(`${oldState.member?.user.tag} вышел из канала, завершаем запись.`);
 
     StopRecording(recording, oldState);
   }
@@ -156,13 +164,13 @@ function StopRecording(recording: ActiveRecording, oldState: VoiceState) {
 export async function TranscribeAudio(filePath: string, message: Message){
 try {
     const transcript = await transcribeAudio(filePath);
-    console.log('Распознанный текст:', transcript);
+    Logger.log('Распознанный текст: ' + transcript);
     const followup = await generateFollowUp(transcript);
     SendToDiscord(followup, filePath, message);
-    console.log('Follow-up:', followup);
+    Logger.log('Follow-up: ' + followup);
     } catch (err) {
       SendToDiscord('Fake follow up', filePath, message);
-      console.error('Ошибка при расшифровке записи:', err);
+      Logger.error('Ошибка при расшифровке записи: ' + err);
     }
 }
 
@@ -171,11 +179,11 @@ export async function SendToDiscord(followup: string, filePath:string, message: 
     try {
     const txtPath = filePath.replace(path.extname(filePath), '.txt');
     fs.writeFileSync(txtPath, followup, 'utf-8');
-    console.log('Follow-up сохранён в файл:', txtPath);
+    Logger.log('Follow-up сохранён в файл: ' + txtPath);
 
     const guild = message.guild;
     if (!guild) {
-      console.warn('Сообщение не из сервера.');
+      Logger.warn('Сообщение не из сервера.');
       return;
     }
 
@@ -187,9 +195,9 @@ export async function SendToDiscord(followup: string, filePath:string, message: 
       files: [txtPath],
       });
     } else {
-      console.warn(`Канал "${followup_channel}" не найден или не текстовый.`);
+      Logger.warn(`Канал "${followup_channel}" не найден или не текстовый.`);
     }
   } catch (err) {
-    console.error('Ошибка при отправке follow-up в канал:', err);
+    Logger.error('Ошибка при отправке follow-up в канал: ' + err);
   }
 }
