@@ -72,7 +72,7 @@ client.on('messageCreate', async (message) => {
     const opusStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 10000,
+        duration: 3600000,
       },
     });
 
@@ -113,6 +113,22 @@ client.on('messageCreate', async (message) => {
 
   if (message.content === '!testTr') {
     TranscribeAudio(recordingsDir + "/test.wav", message)
+  }
+
+  if (message.content === '!stop') {
+    const recording = activeRecordings.get(message.guild.id);
+  if (!recording) {
+    message.reply('Нет активной записи для остановки.');
+    return;
+  }
+
+  if (recording.userId !== message.author.id) {
+    message.reply('Только пользователь, начавший запись, может её остановить.');
+    return;
+  }
+
+  StopRecording(recording, message.member!.voice);
+  message.reply('Запись остановлена.');
   }
 });
 
