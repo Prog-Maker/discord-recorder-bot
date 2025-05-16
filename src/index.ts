@@ -1,5 +1,16 @@
-import { Client, GatewayIntentBits, Partials, VoiceState, Message, TextChannel } from 'discord.js';
-import {joinVoiceChannel, EndBehaviorType, entersState, VoiceConnectionStatus,
+import {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  VoiceState,
+  Message,
+  TextChannel,
+} from 'discord.js';
+import {
+  joinVoiceChannel,
+  EndBehaviorType,
+  entersState,
+  VoiceConnectionStatus,
   DiscordGatewayAdapterCreator,
   VoiceReceiver,
 } from '@discordjs/voice';
@@ -7,13 +18,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import prism from 'prism-media';
-import { token } from './config';
 import { transcribeAudio } from './whisper';
 import { generateFollowUp } from './followup';
 import { Logger } from './logger';
 
 const followup_channel = process.env.FOLLOW_UP_CHANNEL;
 const logs_channel = process.env.LOGS_CHANNEL;
+const token = process.env.DISCORD_TOKEN;
 
 const client = new Client({
   intents: [
@@ -58,7 +69,8 @@ client.on('messageCreate', async (message) => {
     const connection = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: voiceChannel.guild.id,
-      adapterCreator: voiceChannel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
+      adapterCreator: voiceChannel.guild
+        .voiceAdapterCreator as DiscordGatewayAdapterCreator,
       selfDeaf: false,
     });
 
@@ -90,15 +102,18 @@ client.on('messageCreate', async (message) => {
     });
 
     const ffmpeg = spawn('ffmpeg', [
-      '-f', 's16le',
-      '-ar', '48000',
-      '-ac', '2',
-      '-i', 'pipe:0',
+      '-f',
+      's16le',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-i',
+      'pipe:0',
       filepath,
     ]);
 
     ffmpeg.stderr.on('data', (data) => {
-
       Logger.error(`ffmpeg stderr: ${data}`);
     });
 
@@ -120,31 +135,39 @@ client.on('messageCreate', async (message) => {
   }
 
   if (message.content === '!testTr') {
-    TranscribeAudio(recordingsDir + "/test.wav", message)
+    TranscribeAudio(recordingsDir + '/test.wav', message);
   }
 
   if (message.content === '!stop') {
     const recording = activeRecordings.get(message.guild.id);
-  if (!recording) {
-    message.reply('Нет активной записи для остановки.');
-    return;
-  }
+    if (!recording) {
+      message.reply('Нет активной записи для остановки.');
+      return;
+    }
 
-  if (recording.userId !== message.author.id) {
-    message.reply('Только пользователь, начавший запись, может её остановить.');
-    return;
-  }
+    if (recording.userId !== message.author.id) {
+      message.reply(
+        'Только пользователь, начавший запись, может её остановить.'
+      );
+      return;
+    }
 
-  StopRecording(recording, message.member!.voice);
-  message.reply('Запись остановлена.');
+    StopRecording(recording, message.member!.voice);
+    message.reply('Запись остановлена.');
   }
 });
 
 client.on('voiceStateUpdate', (oldState: VoiceState, newState: VoiceState) => {
   const recording = activeRecordings.get(oldState.guild.id);
-  if (recording && oldState.id === recording.userId && oldState.channelId &&  !newState.channelId)
-  {
-    Logger.log(`${oldState.member?.user.tag} вышел из канала, завершаем запись.`);
+  if (
+    recording &&
+    oldState.id === recording.userId &&
+    oldState.channelId &&
+    !newState.channelId
+  ) {
+    Logger.log(
+      `${oldState.member?.user.tag} вышел из канала, завершаем запись.`
+    );
 
     StopRecording(recording, oldState);
   }
@@ -153,7 +176,11 @@ client.on('voiceStateUpdate', (oldState: VoiceState, newState: VoiceState) => {
 client.login(token);
 
 function StopRecording(recording: ActiveRecording, oldState: VoiceState) {
-  if (recording.ffmpeg?.stdin && !recording.ffmpeg.stdin.destroyed && !recording.ffmpeg.stdin.writableEnded) {
+  if (
+    recording.ffmpeg?.stdin &&
+    !recording.ffmpeg.stdin.destroyed &&
+    !recording.ffmpeg.stdin.writableEnded
+  ) {
     recording.ffmpeg.stdin.end();
   }
 
@@ -161,22 +188,25 @@ function StopRecording(recording: ActiveRecording, oldState: VoiceState) {
   activeRecordings.delete(oldState.guild.id);
 }
 
-export async function TranscribeAudio(filePath: string, message: Message){
-try {
+export async function TranscribeAudio(filePath: string, message: Message) {
+  try {
     const transcript = await transcribeAudio(filePath);
     Logger.log('Распознанный текст: ' + transcript);
     const followup = await generateFollowUp(transcript);
     SendToDiscord(followup, filePath, message);
     Logger.log('Follow-up: ' + followup);
-    } catch (err) {
-      SendToDiscord('Fake follow up', filePath, message);
-      Logger.error('Ошибка при расшифровке записи: ' + err);
-    }
+  } catch (err) {
+    SendToDiscord('Fake follow up', filePath, message);
+    Logger.error('Ошибка при расшифровке записи: ' + err);
+  }
 }
 
-export async function SendToDiscord(followup: string, filePath:string, message: Message)
-{
-    try {
+export async function SendToDiscord(
+  followup: string,
+  filePath: string,
+  message: Message
+) {
+  try {
     const txtPath = filePath.replace(path.extname(filePath), '.txt');
     fs.writeFileSync(txtPath, followup, 'utf-8');
     Logger.log('Follow-up сохранён в файл: ' + txtPath);
@@ -187,12 +217,14 @@ export async function SendToDiscord(followup: string, filePath:string, message: 
       return;
     }
 
-    const channel = guild.channels.cache.find((ch) => ch.name === followup_channel && ch.isTextBased());
+    const channel = guild.channels.cache.find(
+      (ch) => ch.name === followup_channel && ch.isTextBased()
+    );
 
     if (channel && channel.isTextBased()) {
       await (channel as TextChannel).send({
-      content: 'Вот итоговый follow-up по созвону:',
-      files: [txtPath],
+        content: 'Вот итоговый follow-up по созвону:',
+        files: [txtPath],
       });
     } else {
       Logger.warn(`Канал "${followup_channel}" не найден или не текстовый.`);
