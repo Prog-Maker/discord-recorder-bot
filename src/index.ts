@@ -17,7 +17,8 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import prism from 'prism-media';
+import { createRecordingPipeline } from './recorder';
+import { transcribeAndHandle } from './transcriber';
 import { transcribeAudioInChunks } from './whisper';
 import { generateFollowUp } from './followup';
 import { Logger } from './logger';
@@ -85,44 +86,15 @@ client.on('messageCreate', async (message) => {
     const receiver = connection.receiver;
     const userId = message.author.id;
     const username = message.author.username.replace(/\W/g, '');
-    const filename = `${username}-${Date.now()}.wav`;
+    const filename = `${username}-${Date.now()}.mp3`;
     const filepath = path.join(recordingsDir, filename);
 
-    const opusStream = receiver.subscribe(userId, {
-      end: {
-        behavior: EndBehaviorType.AfterSilence,
-        duration: 3600000,
-      },
-    });
-
-    const decoder = new prism.opus.Decoder({
-      rate: 48000,
-      channels: 2,
-      frameSize: 960,
-    });
-
-    const ffmpeg = spawn('ffmpeg', [
-      '-f',
-      's16le',
-      '-ar',
-      '48000',
-      '-ac',
-      '2',
-      '-i',
-      'pipe:0',
-      filepath,
-    ]);
-
-    ffmpeg.stderr.on('data', (data) => {
-      Logger.log(`ffmpeg stderr: ${data}`);
-    });
+    const ffmpeg = createRecordingPipeline(userId, receiver, filepath);
 
     ffmpeg.on('close', async (code) => {
       Logger.log(`Запись завершена, ffmpeg завершился с кодом ${code}`);
-      await TranscribeAudio(filepath, message);
+      await transcribeAndHandle(filepath, message);
     });
-
-    opusStream.pipe(decoder).pipe(ffmpeg.stdin);
 
     Logger.log(`Началась запись: ${filepath}`);
 
@@ -135,7 +107,7 @@ client.on('messageCreate', async (message) => {
   }
 
   if (message.content === '!testTr') {
-    TranscribeAudio(recordingsDir + '/test.wav', message);
+    transcribeAndHandle(path.join(recordingsDir, 'test.mp3'), message);
   }
 
   if (message.content === '!stop') {
@@ -187,7 +159,7 @@ function StopRecording(recording: ActiveRecording, oldState: VoiceState) {
   recording.connection.destroy();
   activeRecordings.delete(oldState.guild.id);
 }
-
+/*
 export async function TranscribeAudio(filePath: string, message: Message) {
   try {
     const transcript = await transcribeAudioInChunks(filePath);
@@ -232,4 +204,4 @@ export async function SendToDiscord(
   } catch (err) {
     Logger.error('Ошибка при отправке follow-up в канал: ' + err);
   }
-}
+}*/
