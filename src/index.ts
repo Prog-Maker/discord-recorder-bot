@@ -18,7 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import prism from 'prism-media';
-import { transcribeAudio } from './whisper';
+import { transcribeAudioInChunks } from './whisper';
 import { generateFollowUp } from './followup';
 import { Logger } from './logger';
 
@@ -190,7 +190,7 @@ function StopRecording(recording: ActiveRecording, oldState: VoiceState) {
 
 export async function TranscribeAudio(filePath: string, message: Message) {
   try {
-    const transcript = await transcribeAudio(filePath);
+    const transcript = await transcribeAudioInChunks(filePath);
     Logger.log('Распознанный текст: ' + transcript);
     const followup = await generateFollowUp(transcript);
     SendToDiscord(followup, filePath, message);
