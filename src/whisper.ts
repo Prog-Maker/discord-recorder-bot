@@ -15,7 +15,16 @@ if (!OPENAI_API_KEY) {
   throw new Error('Не найден OPENAI_API_KEY в .env');
 }
 
-// Удаление старых сегментов
+// Проверка наличия ffmpeg и ffprobe
+function checkDependencies() {
+  try {
+    execSync('ffmpeg -version', { stdio: 'ignore' });
+    execSync('ffprobe -version', { stdio: 'ignore' });
+  } catch {
+    throw new Error('Необходимы ffmpeg и ffprobe. Установите их в системе.');
+  }
+}
+
 function cleanSegmentFolder() {
   if (fs.existsSync(SEGMENT_FOLDER)) {
     fs.rmSync(SEGMENT_FOLDER, { recursive: true, force: true });
@@ -23,13 +32,11 @@ function cleanSegmentFolder() {
   fs.mkdirSync(SEGMENT_FOLDER);
 }
 
-// Получение размера файла в мегабайтах
 function getFileSizeMB(filePath: string): number {
   const stats = fs.statSync(filePath);
   return stats.size / (1024 * 1024);
 }
 
-// Нарезка файла на части по ~24 МБ
 function splitAudioBySize(inputFile: string): string[] {
   const duration = parseFloat(
     execSync(
@@ -49,7 +56,7 @@ function splitAudioBySize(inputFile: string): string[] {
 
   const outputPattern = path.join(SEGMENT_FOLDER, 'segment_%03d.mp3');
   execSync(
-    `ffmpeg -i "${inputFile}" -f segment -segment_time ${segmentDuration} -c copy "${outputPattern}"`
+    `ffmpeg -i "${inputFile}" -f segment -segment_time ${segmentDuration} -c:a libmp3lame -b:a 128k "${outputPattern}"`
   );
 
   return fs
@@ -58,7 +65,6 @@ function splitAudioBySize(inputFile: string): string[] {
     .map((f) => path.join(SEGMENT_FOLDER, f));
 }
 
-// Распознавание одной части
 async function transcribeFile(filePath: string): Promise<string> {
   const form = new FormData();
   form.append('file', fs.createReadStream(filePath));
@@ -78,10 +84,10 @@ async function transcribeFile(filePath: string): Promise<string> {
   return response.data.text;
 }
 
-// Основная функция
 export async function transcribeAudioInChunks(
   filePath: string
 ): Promise<string> {
+  checkDependencies();
   cleanSegmentFolder();
 
   const segments = splitAudioBySize(filePath);
