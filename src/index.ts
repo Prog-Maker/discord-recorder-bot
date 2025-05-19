@@ -114,7 +114,7 @@ client.on('messageCreate', async (message) => {
     ]);
 
     ffmpeg.stderr.on('data', (data) => {
-      Logger.error(`ffmpeg stderr: ${data}`);
+      Logger.log(`ffmpeg stderr: ${data}`);
     });
 
     ffmpeg.on('close', async (code) => {
