@@ -10,14 +10,22 @@ export async function generateFollowUp(transcript: string): Promise<string> {
     messages: [
       {
         role: 'system',
-        content: 'Ты ассистент, который составляет краткий follow-up по итогам звонка.',
+        content: `Ты — профессиональный ассистент, который составляет краткий и структурированный follow-up по итогам делового звонка.
+Follow-up должен содержать:
+1. Основные темы обсуждения
+2. Принятые решения
+3. Дальнейшие шаги (action items с указанием ответственных, если они упоминаются).
+Оформляй ответ в виде маркированного списка или с подзаголовками. Пиши лаконично и ясно.`,
       },
       {
         role: 'user',
-        content: `Вот транскрипт звонка:\n\n${transcript}\n\nСоставь краткий follow-up.`,
+        content: `Вот транскрипт звонка:\n\n${transcript}\n\nСоставь follow-up по указанной структуре.`,
       },
     ],
   });
 
-  return chatCompletion.choices[0].message.content || 'Не удалось сгенерировать follow-up.';
+  return (
+    chatCompletion.choices[0].message.content ||
+    'Не удалось сгенерировать follow-up.'
+  );
 }

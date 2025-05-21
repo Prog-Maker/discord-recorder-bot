@@ -43,5 +43,8 @@ export async function transcribeAudioInChunks(
     fullText += text + '\n';
   }
 
-  return fullText.trim();
+  return fullText
+    .trim()
+    .replace(/([.!?])\s+/g, '$1\n') // разбивка по предложениям
+    .replace(/\n{2,}/g, '\n'); // убрать лишние пустые строки
 }
